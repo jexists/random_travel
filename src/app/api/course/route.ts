@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { buildCourse } from "@/features/course/course-builder";
+import { fetchKakaoCafes } from "@/features/course/kakao-api";
 import { fetchTourPlaces } from "@/features/course/tour-api";
 import type { CoursePlace } from "@/features/course/types";
 
@@ -49,6 +50,14 @@ export async function POST(request: Request) {
         places = [...live, ...fixtures];
       } catch {
         // Keep the game playable when the public tourism API is temporarily unavailable.
+      }
+    }
+    if (process.env.KAKAO_REST_API_KEY && parsed.data.districtName) {
+      try {
+        const cafes = await fetchKakaoCafes({ apiKey: process.env.KAKAO_REST_API_KEY, districtName: parsed.data.districtName });
+        places = [...places.filter((place) => place.category !== "cafe"), ...cafes, ...fixtures.filter((place) => place.category === "cafe")];
+      } catch {
+        // The local fixture cafe remains available when Kakao search is unavailable.
       }
     }
     return NextResponse.json(buildCourse(places, parsed.data.duration, Math.random));
