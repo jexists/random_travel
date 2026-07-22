@@ -12,7 +12,6 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@vercel/analytics": "latest",
     "d3-geo": "latest",
     "lucide-react": "latest",
     "motion": "latest",

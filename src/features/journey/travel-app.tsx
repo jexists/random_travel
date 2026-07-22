@@ -9,6 +9,7 @@ import { gameRegistry } from "@/features/games/game-definitions";
 import { GameStage } from "@/features/games/game-stage";
 import { KoreaMap } from "@/features/regions/korea-map";
 import { getDistricts, provinces, type RegionCandidate } from "@/features/regions/regions";
+import { trackJourneyEvent } from "@/shared/analytics";
 
 import { initialJourneyState, journeyReducer } from "./journey-reducer";
 
@@ -89,14 +90,25 @@ export function TravelApp({ initialTrip }: { initialTrip?: SharedTrip }) {
         if (!response.ok) throw new Error((await response.json()).message ?? "코스를 만들지 못했어요");
         return response.json() as Promise<TravelCourse>;
       })
-      .then((value) => { if (!cancelled) { setCourse(value); dispatch({ type: "showResult" }); } })
+      .then((value) => { if (!cancelled) { setCourse(value); trackJourneyEvent("course_completed", { duration: state.duration }); dispatch({ type: "showResult" }); } })
       .catch((error: Error) => { if (!cancelled) setCourseError(error.message); });
     return () => { cancelled = true; };
   }, [courseAttempt, district?.name, state.duration, state.provinceCode, state.districtCode, state.stage]);
 
   const selectProvince = (candidate: RegionCandidate) => {
     const nextDistricts = getDistricts(candidate.code);
+    trackJourneyEvent("province_selected", { provinceCode: candidate.code, scope: state.scope });
     dispatch({ type: "selectProvince", provinceCode: candidate.code, skipDistrict: nextDistricts.length <= 1 });
+  };
+
+  const selectGame = (gameId: string) => {
+    trackJourneyEvent("game_selected", { gameId });
+    dispatch({ type: "selectGame", gameId });
+  };
+
+  const selectScope = (scope: "nationwide" | "selectedProvince") => {
+    trackJourneyEvent("scope_selected", { scope });
+    dispatch({ type: "selectScope", scope });
   };
 
   return (
@@ -110,14 +122,14 @@ export function TravelApp({ initialTrip }: { initialTrip?: SharedTrip }) {
           <p className="lead">결정은 게임에게 맡기고, 설레는 마음만 챙겨요. 오늘 끌리는 방법을 골라보세요.</p>
           <div className="card-grid">
             {gameRegistry.list().map((game) => (
-              <button key={game.id} className="game-card" type="button" onClick={() => dispatch({ type: "selectGame", gameId: game.id })} aria-label={`${game.name}: ${game.description}`}>
+              <button key={game.id} className="game-card" type="button" onClick={() => selectGame(game.id)} aria-label={`${game.name}: ${game.description}`}>
                 <span className="game-icon" aria-hidden>{game.icon}</span>
                 <span><span className="game-title">{game.name}</span><span className="game-description">{game.description}</span></span>
                 <ArrowRight className="arrow" size={20} />
               </button>
             ))}
           </div>
-          <button className="random-button" type="button" onClick={() => dispatch({ type: "selectGame", gameId: gameRegistry.random().id })}><Sparkles size={17} /> 게임도 랜덤으로 골라줘</button>
+          <button className="random-button" type="button" onClick={() => selectGame(gameRegistry.random().id)}><Sparkles size={17} /> 게임도 랜덤으로 골라줘</button>
         </section>
       )}
 
@@ -128,8 +140,8 @@ export function TravelApp({ initialTrip }: { initialTrip?: SharedTrip }) {
           <h2>어디까지 맡겨볼까요?</h2>
           <p className="lead">전국을 통째로 맡기거나, 갈 수 있는 시·도만 먼저 정할 수 있어요.</p>
           <div className="choice-grid">
-            <button className="choice-card" type="button" onClick={() => dispatch({ type: "selectScope", scope: "nationwide" })}><Dices size={28} /><strong>전국에서 랜덤</strong><span>시·도부터 시·군·구까지 모두 게임으로 정해요.</span></button>
-            <button className="choice-card" type="button" onClick={() => dispatch({ type: "selectScope", scope: "selectedProvince" })}><Map size={28} /><strong>시·도 먼저 선택</strong><span>갈 수 있는 지역을 고르고 그 안에서 게임을 시작해요.</span></button>
+            <button className="choice-card" type="button" onClick={() => selectScope("nationwide")}><Dices size={28} /><strong>전국에서 랜덤</strong><span>시·도부터 시·군·구까지 모두 게임으로 정해요.</span></button>
+            <button className="choice-card" type="button" onClick={() => selectScope("selectedProvince")}><Map size={28} /><strong>시·도 먼저 선택</strong><span>갈 수 있는 지역을 고르고 그 안에서 게임을 시작해요.</span></button>
           </div>
         </section>
       )}
@@ -147,7 +159,7 @@ export function TravelApp({ initialTrip }: { initialTrip?: SharedTrip }) {
       )}
 
       {state.stage === "district" && state.gameId && state.provinceCode && (
-        <><Header onBack={() => dispatch({ type: "restartProvince" })} step={4} /><GameStage gameId={state.gameId} candidates={districts} level="district" provinceCode={state.provinceCode} title={`${province?.name} 어디로 갈까요?`} onComplete={(candidate) => dispatch({ type: "selectDistrict", districtCode: candidate.code })} /></>
+        <><Header onBack={() => dispatch({ type: "restartProvince" })} step={4} /><GameStage gameId={state.gameId} candidates={districts} level="district" provinceCode={state.provinceCode} title={`${province?.name} 어디로 갈까요?`} onComplete={(candidate) => { trackJourneyEvent("district_selected", { districtCode: candidate.code }); dispatch({ type: "selectDistrict", districtCode: candidate.code }); }} /></>
       )}
 
       {state.stage === "duration" && (
@@ -170,7 +182,7 @@ export function TravelApp({ initialTrip }: { initialTrip?: SharedTrip }) {
           <Header onBack={restart} step={6} />
           <div className="result-hero"><span className="sticker">{selectedGame?.name}</span><p className="result-location">{province?.name}<br />{district?.name}</p><span>{state.duration === "dayTrip" ? "당일치기" : "1박 2일"} 랜덤 코스가 완성됐어요!</span></div>
           {course.days.map((day) => <div className="day-section" key={day.day}><div className="day-title"><h3>DAY {day.day}</h3><a className="route-link" href={day.kakaoRouteUrl} target="_blank" rel="noreferrer">카카오맵으로 열기 ↗</a></div><ol className="place-list">{day.places.map((place, index) => <li className="place-card" key={`${day.day}-${place.id}`}><span className="place-number">{index + 1}</span><span><strong>{place.name}</strong><br /><span className="place-category">{({ attraction: "관광·체험", food: "맛집", cafe: "카페", stay: "숙소" } as const)[place.category]}</span></span></li>)}</ol></div>)}
-          <div className="result-actions"><button className="primary-button" type="button" onClick={() => navigator.clipboard?.writeText(window.location.href)}>코스 링크 복사하기</button><button className="secondary-button" type="button" onClick={() => { setCourse(undefined); dispatch({ type: "restartDistrict" }); }}>이 지역에서 다시 뽑기</button><button className="secondary-button" type="button" onClick={restart}>다른 게임 해보기</button></div>
+          <div className="result-actions"><button className="primary-button" type="button" onClick={() => { trackJourneyEvent("course_shared", { gameId: state.gameId }); navigator.clipboard?.writeText(window.location.href); }}>코스 링크 복사하기</button><button className="secondary-button" type="button" onClick={() => { setCourse(undefined); dispatch({ type: "restartDistrict" }); }}>이 지역에서 다시 뽑기</button><button className="secondary-button" type="button" onClick={restart}>다른 게임 해보기</button></div>
           <p className="notice">장소 영업시간과 휴무일은 방문 전에 꼭 확인해 주세요.</p>
         </section>
       )}
