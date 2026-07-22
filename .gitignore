@@ -4,10 +4,11 @@ out/
 coverage/
 playwright-report/
 test-results/
+.playwright-cli/
+*.tsbuildinfo
 .env
 .env.local
 .env.*.local
 *.log
 .DS_Store
 .worktrees/
-
