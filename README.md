@@ -26,3 +26,29 @@ KAKAO_REST_API_KEY=
 
 API 키가 없는 개발·테스트 환경에서는 고정 fixture 데이터를 사용합니다.
 
+## 실행
+
+```bash
+npm install
+npm run dev
+```
+
+브라우저에서 `http://localhost:3000`을 엽니다. `TOUR_API_KEY`가 있으면 실제 관광지·음식점·숙소를, `KAKAO_REST_API_KEY`가 있으면 실제 카페 검색 결과를 사용합니다. 외부 API가 일시적으로 실패해도 로컬 fixture로 코스를 완성합니다.
+
+## 검증
+
+```bash
+npm run lint
+npm run typecheck
+npm test -- --run
+npm run test:e2e
+npm run build
+```
+
+## 새로운 게임 추가
+
+새 게임은 `src/features/games/game-definitions.ts`의 레지스트리에 정의하고 공통 `GameStage` 계약을 따릅니다. 활성화된 게임은 홈과 `게임도 랜덤으로` 기능에 자동으로 포함됩니다.
+
+## 지도 데이터
+
+대한민국 행정경계는 `southkorea/southkorea-maps`의 KOSTAT 기반 2013 경량 GeoJSON 스냅샷을 사용합니다. 서비스 출시 전 최신 SGIS 행정경계로 교체할 수 있도록 지역 카탈로그와 렌더링을 분리했습니다.
